@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>레벨 퍼즐 게임</title>
+  <style>
+    :root {
+      --bg_start: #eef3ff;
+      --bg_end: #f7f8ff;
+      --card_front: #bff0c9;
+      --card_back: #ecfff1;
+      --card_border: rgba(113, 201, 138, 0.5);
+      --ink: #1f2a44;
+      --muted: #66708a;
+      --accent: #3a6ff1;
+      --danger: #c53b3b;
+      --success: #1f7a3f;
+      --panel: rgba(255, 255, 255, 0.94);
+      --shadow: 0 20px 60px rgba(63, 89, 154, 0.15);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      height: 100%;
+    }
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(99, 139, 255, 0.18), transparent 35%),
+        radial-gradient(circle at bottom right, rgba(87, 196, 120, 0.16), transparent 30%),
+        linear-gradient(180deg, var(--bg_start), var(--bg_end));
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+
+    .game_shell {
+      width: min(100%, 760px);
+      background: var(--panel);
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+      padding: 28px 24px 20px;
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.7);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .title {
+      margin: 0;
+      text-align: center;
+      font-size: clamp(2rem, 5vw, 3rem);
+      line-height: 1.1;
+      letter-spacing: -0.04em;
+    }
+
+    .subtitle {
+      margin: 12px 0 0;
+      text-align: center;
+      color: var(--muted);
+      font-size: 1.05rem;
+    }
+
+    .toolbar {
+      margin-top: 28px;
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .control_group {
+      display: grid;
+      gap: 8px;
+    }
+
+    .control_label {
+      font-size: 0.95rem;
+      font-weight: 800;
+      color: var(--muted);
+    }
+
+    .difficulty_select {
+      min-width: 180px;
+      border: 1px solid rgba(58, 111, 241, 0.18);
+      border-radius: 14px;
+      padding: 12px 14px;
+      background: #fff;
+      color: var(--ink);
+      font-size: 1rem;
+      font-weight: 700;
+      outline: none;
+      box-shadow: 0 8px 20px rgba(63, 89, 154, 0.08);
+    }
+
+    .attempts,
+    .time_left {
+      margin: 0;
+      font-size: 1.2rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .time_left {
+      color: var(--accent);
+    }
+
+    .restart_button {
+      border: 0;
+      border-radius: 16px;
+      padding: 14px 22px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 800;
+      cursor: pointer;
+      box-shadow: 0 10px 20px rgba(58, 111, 241, 0.25);
+      transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+    }
+
+    .restart_button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 12px 24px rgba(58, 111, 241, 0.3);
+    }
+
+    .restart_button:active {
+      transform: translateY(1px);
+    }
+
+    .board {
+      margin-top: 18px;
+      display: grid;
+      gap: 10px;
+      transition: filter 0.2s ease, opacity 0.2s ease;
+    }
+
+    .board.is_locked {
+      filter: blur(1px);
+      opacity: 0.38;
+      pointer-events: none;
+    }
+
+    .card {
+      aspect-ratio: 1 / 1;
+      border: 1px solid var(--card_border);
+      border-radius: 18px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0)),
+        var(--card_front);
+      color: transparent;
+      font-size: clamp(1.4rem, 3.4vw, 2.35rem);
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+      transition: transform 0.18s ease, background-color 0.18s ease, color 0.18s ease, filter 0.18s ease, opacity 0.18s ease;
+      user-select: none;
+    }
+
+    .card:hover {
+      transform: translateY(-2px);
+      filter: brightness(1.02);
+    }
+
+    .card.flipped {
+      background: var(--card_back);
+      color: #f5a623;
+      transform: rotateY(180deg);
+    }
+
+    .card.matched {
+      background: linear-gradient(180deg, rgba(203, 255, 218, 0.95), rgba(180, 239, 195, 0.92));
+      color: #d59c00;
+      border-color: rgba(118, 196, 138, 0.45);
+      cursor: default;
+      opacity: 0.92;
+    }
+
+    .board_spacer {
+      aspect-ratio: 1 / 1;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.35);
+      border: 1px dashed rgba(102, 112, 138, 0.25);
+      opacity: 0.45;
+    }
+
+    .message {
+      min-height: 1.6em;
+      margin: 18px 0 0;
+      text-align: center;
+      font-size: 1.02rem;
+      font-weight: 800;
+      color: var(--success);
+    }
+
+    .message.is_idle {
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .message.is_game_over {
+      color: var(--danger);
+    }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: rgba(247, 248, 255, 0.9);
+      backdrop-filter: blur(10px);
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+
+    .overlay.is_hidden {
+      opacity: 0;
+      pointer-events: none;
+      transform: scale(1.02);
+    }
+
+    .overlay_card {
+      width: min(100%, 520px);
+      border-radius: 28px;
+      background: rgba(255, 255, 255, 0.95);
+      box-shadow: 0 24px 60px rgba(63, 89, 154, 0.16);
+      border: 1px solid rgba(255, 255, 255, 0.85);
+      padding: 30px 26px 24px;
+      text-align: center;
+    }
+
+    .overlay_kicker {
+      margin: 0;
+      color: var(--accent);
+      font-size: 0.95rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .overlay_title {
+      margin: 10px 0 0;
+      font-size: clamp(2rem, 5vw, 2.8rem);
+      line-height: 1.08;
+      letter-spacing: -0.04em;
+    }
+
+    .overlay_text {
+      margin: 12px 0 0;
+      color: var(--muted);
+      font-size: 1.05rem;
+      line-height: 1.6;
+    }
+
+    .overlay_actions {
+      margin-top: 22px;
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .overlay_button {
+      border: 0;
+      border-radius: 16px;
+      padding: 14px 22px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 800;
+      cursor: pointer;
+      box-shadow: 0 10px 20px rgba(58, 111, 241, 0.25);
+    }
+
+    .overlay_button.secondary {
+      background: #eef3ff;
+      color: var(--ink);
+      box-shadow: none;
+      border: 1px solid rgba(58, 111, 241, 0.14);
+    }
+
+    @media (max-width: 620px) {
+      .game_shell {
+        padding: 22px 16px 18px;
+        border-radius: 22px;
+      }
+
+      .toolbar {
+        justify-content: center;
+      }
+
+      .control_group,
+      .attempts,
+      .time_left {
+        width: 100%;
+        text-align: center;
+      }
+
+      .difficulty_select,
+      .restart_button {
+        width: 100%;
+      }
+
+      .overlay_card {
+        padding: 24px 18px 20px;
+        border-radius: 22px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="game_shell">
+    <h1 class="title">간단한 퍼즐 게임</h1>
+    <p class="subtitle">같은 그림 2개를 찾아 모두 맞추면 다음 난이도로 넘어갑니다.</p>
+
+    <div class="toolbar">
+      <div class="control_group">
+        <label class="control_label" for="difficulty_select">난이도</label>
+        <select class="difficulty_select" id="difficulty_select">
+          <option value="easy">쉬움 (3x3)</option>
+          <option value="medium1">중간1 (4x4)</option>
+          <option value="medium2">중간2 (5x5)</option>
+          <option value="hard">어려움 (6x6)</option>
+        </select>
+      </div>
+
+      <p class="attempts">시도 횟수: <span id="attempt_count">0</span></p>
+      <p class="time_left">남은 시간: <span id="time_left">0:00</span></p>
+      <button class="restart_button" id="restart_button" type="button">다시 시작</button>
+    </div>
+
+    <section class="board" id="board" aria-label="퍼즐 카드 보드"></section>
+
+    <p class="message is_idle" id="message">시작 버튼을 눌러 게임을 시작하세요.</p>
+
+    <div class="overlay" id="overlay">
+      <div class="overlay_card">
+        <p class="overlay_kicker" id="overlay_kicker">Game Start</p>
+        <h2 class="overlay_title" id="overlay_title">퍼즐을 시작해볼까요?</h2>
+        <p class="overlay_text" id="overlay_text">
+          시작 버튼을 누르면 쉬움 난이도부터 게임이 시작됩니다.
+          각 레벨을 클리어하면 다음 단계로 자동 이동합니다.
+        </p>
+        <div class="overlay_actions">
+          <button class="overlay_button" id="overlay_start_button" type="button">시작하기</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const emoji_list = [
+      "🍓", "🍑", "🥝", "🍊", "🍎", "🍉", "🍌", "🫐",
+      "🍐", "🍍", "🍒", "🍇", "🥥", "🍋", "🥑", "🍈",
+      "🍅", "🌽"
+    ];
+
+    const difficulty_configs = {
+      easy: { label: "쉬움", size: 3, time_limit: 45 },
+      medium1: { label: "중간1", size: 4, time_limit: 75 },
+      medium2: { label: "중간2", size: 5, time_limit: 105 },
+      hard: { label: "어려움", size: 6, time_limit: 150 },
+    };
+
+    const level_order = ["easy", "medium1", "medium2", "hard"];
+
+    const board_element = document.getElementById("board");
+    const attempt_count_element = document.getElementById("attempt_count");
+    const time_left_element = document.getElementById("time_left");
+    const restart_button = document.getElementById("restart_button");
+    const difficulty_select = document.getElementById("difficulty_select");
+    const message_element = document.getElementById("message");
+    const overlay_element = document.getElementById("overlay");
+    const overlay_title_element = document.getElementById("overlay_title");
+    const overlay_text_element = document.getElementById("overlay_text");
+    const overlay_kicker_element = document.getElementById("overlay_kicker");
+    const overlay_start_button = document.getElementById("overlay_start_button");
+
+    let first_card = null;
+    let second_card = null;
+    let board_locked = true;
+    let attempt_count = 0;
+    let matched_pairs = 0;
+    let current_level = "easy";
+    let pending_hide_timer = null;
+    let countdown_timer = null;
+    let stage_advance_timer = null;
+    let time_left = 0;
+    let game_phase = "ready";
+
+    function shuffle_array(array) {
+      const shuffled_array = [...array];
+
+      for (let index = shuffled_array.length - 1; index > 0; index -= 1) {
+        const random_index = Math.floor(Math.random() * (index + 1));
+        [shuffled_array[index], shuffled_array[random_index]] = [shuffled_array[random_index], shuffled_array[index]];
+      }
+
+      return shuffled_array;
+    }
+
+    function get_level_config() {
+      return difficulty_configs[current_level] ?? difficulty_configs.easy;
+    }
+
+    function get_level_pair_count(size) {
+      return Math.floor((size * size) / 2);
+    }
+
+    function update_attempt_count() {
+      attempt_count_element.textContent = String(attempt_count);
+    }
+
+    function format_time(seconds) {
+      const minutes = Math.floor(seconds / 60);
+      const remaining_seconds = seconds % 60;
+      return `${minutes}:${String(remaining_seconds).padStart(2, "0")}`;
+    }
+
+    function update_time_left() {
+      time_left_element.textContent = format_time(time_left);
+    }
+
+    function set_message(text, status = "idle") {
+      message_element.textContent = text;
+      message_element.classList.toggle("is_idle", status === "idle");
+      message_element.classList.toggle("is_game_over", status === "game_over");
+    }
+
+    function show_overlay({ kicker, title, text, button_text, button_secondary = false }) {
+      overlay_kicker_element.textContent = kicker;
+      overlay_title_element.textContent = title;
+      overlay_text_element.textContent = text;
+      overlay_start_button.textContent = button_text;
+      overlay_start_button.classList.toggle("secondary", button_secondary);
+      overlay_element.classList.remove("is_hidden");
+    }
+
+    function hide_overlay() {
+      overlay_element.classList.add("is_hidden");
+    }
+
+    function lock_board(is_locked) {
+      board_locked = is_locked;
+      board_element.classList.toggle("is_locked", is_locked);
+    }
+
+    function reveal_card(card_element) {
+      card_element.classList.add("flipped");
+      card_element.setAttribute("aria-pressed", "true");
+    }
+
+    function hide_card(card_element) {
+      if (!card_element) {
+        return;
+      }
+
+      card_element.classList.remove("flipped");
+      card_element.setAttribute("aria-pressed", "false");
+    }
+
+    function lock_matched_cards(card_one, card_two) {
+      card_one.classList.add("matched");
+      card_two.classList.add("matched");
+      card_one.disabled = true;
+      card_two.disabled = true;
+    }
+
+    function clear_selection() {
+      first_card = null;
+      second_card = null;
+      lock_board(false);
+    }
+
+    function stop_countdown() {
+      if (countdown_timer !== null) {
+        window.clearInterval(countdown_timer);
+        countdown_timer = null;
+      }
+    }
+
+    function stop_pending_hide() {
+      if (pending_hide_timer !== null) {
+        window.clearTimeout(pending_hide_timer);
+        pending_hide_timer = null;
+      }
+    }
+
+    function stop_stage_advance() {
+      if (stage_advance_timer !== null) {
+        window.clearTimeout(stage_advance_timer);
+        stage_advance_timer = null;
+      }
+    }
+
+    function end_game_as_over() {
+      game_phase = "game_over";
+      lock_board(true);
+      stop_countdown();
+      stop_pending_hide();
+      stop_stage_advance();
+
+      board_element.querySelectorAll(".card").forEach((card_element) => {
+        card_element.disabled = true;
+      });
+
+      set_message("시간 초과! 게임 오버입니다.", "game_over");
+      show_overlay({
+        kicker: "Game Over",
+        title: "시간이 모두 소진됐어요",
+        text: `도전은 여기서 끝났습니다. 다시 시작해서 다른 전략으로 도전해보세요.`,
+        button_text: "다시 시작하기"
+      });
+    }
+
+    function check_time_expired() {
+      if (time_left <= 0 && game_phase === "playing") {
+        time_left = 0;
+        update_time_left();
+        end_game_as_over();
+      }
+    }
+
+    function start_countdown() {
+      stop_countdown();
+      update_time_left();
+
+      countdown_timer = window.setInterval(() => {
+        if (game_phase !== "playing") {
+          stop_countdown();
+          return;
+        }
+
+        time_left -= 1;
+        update_time_left();
+        check_time_expired();
+      }, 1000);
+    }
+
+    function render_board() {
+      const { size } = get_level_config();
+      const pair_count = get_level_pair_count(size);
+      const blank_count = (size * size) % 2;
+      const selected_emojis = emoji_list.slice(0, pair_count);
+      const card_values = shuffle_array([...selected_emojis, ...selected_emojis]);
+      const cells = [...card_values];
+
+      if (blank_count > 0) {
+        cells.splice(Math.floor(cells.length / 2), 0, null);
+      }
+
+      board_element.innerHTML = "";
+      board_element.style.gridTemplateColumns = `repeat(${size}, minmax(0, 1fr))`;
+
+      cells.forEach((emoji) => {
+        if (emoji === null) {
+          const spacer_element = document.createElement("div");
+          spacer_element.className = "board_spacer";
+          spacer_element.setAttribute("aria-hidden", "true");
+          board_element.appendChild(spacer_element);
+          return;
+        }
+
+        const card_button = document.createElement("button");
+        card_button.type = "button";
+        card_button.className = "card";
+        card_button.setAttribute("aria-label", "카드");
+        card_button.setAttribute("aria-pressed", "false");
+        card_button.dataset.emoji = emoji;
+        card_button.textContent = emoji;
+        card_button.addEventListener("click", handle_card_click);
+        board_element.appendChild(card_button);
+      });
+    }
+
+    function finish_with_clear() {
+      stop_countdown();
+      stop_pending_hide();
+      stop_stage_advance();
+      lock_board(true);
+
+      const current_index = level_order.indexOf(current_level);
+      const is_last_level = current_index >= level_order.length - 1;
+
+      if (is_last_level) {
+        game_phase = "finished";
+        set_message(`축하합니다! ${attempt_count}번 만에 모든 난이도를 모두 완료했습니다.`, "idle");
+        show_overlay({
+          kicker: "Congratulations",
+          title: "모든 레벨을 통과했어요",
+          text: `정말 대단해요. 쉬움부터 어려움까지 모두 완료했습니다.`,
+          button_text: "처음부터 다시"
+        });
+        return;
+      }
+
+      const next_level = level_order[current_index + 1];
+      game_phase = "cleared";
+      set_message(
+        `축하합니다! ${difficulty_configs[current_level].label} 클리어. 잠시 후 ${difficulty_configs[next_level].label}로 이동합니다.`,
+        "idle"
+      );
+
+      show_overlay({
+        kicker: "Stage Clear",
+        title: `${difficulty_configs[current_level].label} 완료`,
+        text: `${difficulty_configs[next_level].label} 난이도로 곧 이동합니다.`,
+        button_text: "다음 단계로",
+        button_secondary: true
+      });
+
+      stage_advance_timer = window.setTimeout(() => {
+        stage_advance_timer = null;
+        current_level = next_level;
+        difficulty_select.value = next_level;
+        start_level();
+      }, 1200);
+    }
+
+    function check_match() {
+      attempt_count += 1;
+      update_attempt_count();
+
+      if (first_card.dataset.emoji === second_card.dataset.emoji) {
+        lock_matched_cards(first_card, second_card);
+        matched_pairs += 1;
+        clear_selection();
+
+        if (matched_pairs === get_level_pair_count(get_level_config().size)) {
+          finish_with_clear();
+        } else {
+          set_message("잘 찾았어요! 같은 그림입니다.", "idle");
+        }
+        return;
+      }
+
+      set_message("다시 시도해보세요.", "idle");
+      lock_board(true);
+
+      stop_pending_hide();
+      pending_hide_timer = window.setTimeout(() => {
+        hide_card(first_card);
+        hide_card(second_card);
+        clear_selection();
+        pending_hide_timer = null;
+      }, 850);
+    }
+
+    function handle_card_click(event) {
+      const clicked_card = event.currentTarget;
+
+      if (game_phase !== "playing" || board_locked || clicked_card === first_card || clicked_card.classList.contains("matched")) {
+        return;
+      }
+
+      reveal_card(clicked_card);
+
+      if (!first_card) {
+        first_card = clicked_card;
+        return;
+      }
+
+      second_card = clicked_card;
+      check_match();
+    }
+
+    function prepare_level() {
+      stop_pending_hide();
+      stop_stage_advance();
+      stop_countdown();
+
+      first_card = null;
+      second_card = null;
+      matched_pairs = 0;
+      attempt_count = 0;
+      time_left = get_level_config().time_limit;
+
+      update_attempt_count();
+      update_time_left();
+      render_board();
+    }
+
+    function start_level() {
+      hide_overlay();
+      game_phase = "playing";
+      lock_board(false);
+      prepare_level();
+      set_message("카드를 눌러 같은 그림을 찾아보세요.", "idle");
+      start_countdown();
+    }
+
+    function reset_to_start_screen() {
+      current_level = "easy";
+      difficulty_select.value = "easy";
+      game_phase = "ready";
+      stop_countdown();
+      stop_pending_hide();
+      stop_stage_advance();
+      lock_board(true);
+      prepare_level();
+      set_message("시작 버튼을 눌러 게임을 시작하세요.", "idle");
+      show_overlay({
+        kicker: "Game Start",
+        title: "퍼즐을 시작해볼까요?",
+        text: "시작 버튼을 누르면 쉬움 난이도부터 게임이 시작됩니다. 각 레벨을 클리어하면 다음 단계로 자동 이동합니다.",
+        button_text: "시작하기"
+      });
+    }
+
+    function handle_difficulty_change() {
+      if (game_phase !== "ready") {
+        current_level = difficulty_select.value;
+        prepare_level();
+        start_countdown();
+        set_message("카드를 눌러 같은 그림을 찾아보세요.", "idle");
+      } else {
+        current_level = difficulty_select.value;
+      }
+    }
+
+    overlay_start_button.addEventListener("click", () => {
+      if (game_phase === "finished" || game_phase === "game_over") {
+        reset_to_start_screen();
+        return;
+      }
+
+      start_level();
+    });
+
+    restart_button.addEventListener("click", () => {
+      reset_to_start_screen();
+    });
+
+    difficulty_select.addEventListener("change", handle_difficulty_change);
+
+    reset_to_start_screen();
+  </script>
+</body>
+</html>

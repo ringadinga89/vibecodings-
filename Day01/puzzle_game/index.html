@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>간단한 퍼즐 게임</title>
+  <style>
+    :root {
+      --bg_start: #eef3ff;
+      --bg_end: #f7f8ff;
+      --card_front: #bff0c9;
+      --card_back: #ecfff1;
+      --card_border: rgba(113, 201, 138, 0.5);
+      --ink: #1f2a44;
+      --muted: #66708a;
+      --accent: #3a6ff1;
+      --success: #1f7a3f;
+      --panel: rgba(255, 255, 255, 0.94);
+      --shadow: 0 20px 60px rgba(63, 89, 154, 0.15);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      height: 100%;
+    }
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(99, 139, 255, 0.18), transparent 35%),
+        radial-gradient(circle at bottom right, rgba(87, 196, 120, 0.16), transparent 30%),
+        linear-gradient(180deg, var(--bg_start), var(--bg_end));
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+
+    .game_shell {
+      width: min(100%, 560px);
+      background: var(--panel);
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+      padding: 28px 24px 20px;
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.7);
+    }
+
+    .title {
+      margin: 0;
+      text-align: center;
+      font-size: clamp(2rem, 5vw, 3rem);
+      line-height: 1.1;
+      letter-spacing: -0.04em;
+    }
+
+    .subtitle {
+      margin: 12px 0 0;
+      text-align: center;
+      color: var(--muted);
+      font-size: 1.05rem;
+    }
+
+    .toolbar {
+      margin-top: 28px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .attempts {
+      margin: 0;
+      font-size: 1.2rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .restart_button {
+      border: 0;
+      border-radius: 16px;
+      padding: 14px 22px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 800;
+      cursor: pointer;
+      box-shadow: 0 10px 20px rgba(58, 111, 241, 0.25);
+      transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+    }
+
+    .restart_button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 12px 24px rgba(58, 111, 241, 0.3);
+    }
+
+    .restart_button:active {
+      transform: translateY(1px);
+    }
+
+    .board {
+      margin-top: 18px;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .card {
+      aspect-ratio: 1 / 1;
+      border: 1px solid var(--card_border);
+      border-radius: 18px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0)),
+        var(--card_front);
+      color: transparent;
+      font-size: clamp(1.9rem, 5vw, 2.6rem);
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+      transition:
+        transform 0.18s ease,
+        background-color 0.18s ease,
+        color 0.18s ease,
+        filter 0.18s ease,
+        opacity 0.18s ease;
+      user-select: none;
+    }
+
+    .card:hover {
+      transform: translateY(-2px);
+      filter: brightness(1.02);
+    }
+
+    .card.flipped {
+      background: var(--card_back);
+      color: #f5a623;
+      transform: rotateY(180deg);
+    }
+
+    .card.matched {
+      background: linear-gradient(180deg, rgba(203, 255, 218, 0.95), rgba(180, 239, 195, 0.92));
+      color: #d59c00;
+      border-color: rgba(118, 196, 138, 0.45);
+      cursor: default;
+      opacity: 0.92;
+    }
+
+    .message {
+      min-height: 1.6em;
+      margin: 18px 0 0;
+      text-align: center;
+      font-size: 1.02rem;
+      font-weight: 800;
+      color: var(--success);
+    }
+
+    .message.is_idle {
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    @media (max-width: 520px) {
+      .game_shell {
+        padding: 22px 16px 18px;
+        border-radius: 22px;
+      }
+
+      .toolbar {
+        justify-content: center;
+      }
+
+      .attempts {
+        width: 100%;
+        text-align: center;
+      }
+
+      .restart_button {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="game_shell">
+    <h1 class="title">간단한 퍼즐 게임</h1>
+    <p class="subtitle">같은 그림 2개를 찾아 모두 맞추면 클리어입니다.</p>
+
+    <div class="toolbar">
+      <p class="attempts">시도 횟수: <span id="attempt_count">0</span></p>
+      <button class="restart_button" id="restart_button" type="button">다시 시작</button>
+    </div>
+
+    <section class="board" id="board" aria-label="퍼즐 카드 보드"></section>
+
+    <p class="message is_idle" id="message">카드를 눌러 같은 그림을 찾아보세요.</p>
+  </main>
+
+  <script>
+    const emoji_list = ["🍓", "🍑", "🥝", "🍊", "🍎", "🍉", "🍌", "🫐"];
+    const board_element = document.getElementById("board");
+    const attempt_count_element = document.getElementById("attempt_count");
+    const restart_button = document.getElementById("restart_button");
+    const message_element = document.getElementById("message");
+
+    let cards = [];
+    let first_card = null;
+    let second_card = null;
+    let board_locked = false;
+    let attempt_count = 0;
+    let matched_pairs = 0;
+
+    function shuffle_array(array) {
+      const shuffled_array = [...array];
+
+      for (let index = shuffled_array.length - 1; index > 0; index -= 1) {
+        const random_index = Math.floor(Math.random() * (index + 1));
+        [shuffled_array[index], shuffled_array[random_index]] = [shuffled_array[random_index], shuffled_array[index]];
+      }
+
+      return shuffled_array;
+    }
+
+    function update_attempt_count() {
+      attempt_count_element.textContent = String(attempt_count);
+    }
+
+    function set_message(text, is_idle = false) {
+      message_element.textContent = text;
+      message_element.classList.toggle("is_idle", is_idle);
+    }
+
+    function create_card(emoji, index) {
+      const card_button = document.createElement("button");
+      card_button.type = "button";
+      card_button.className = "card";
+      card_button.setAttribute("aria-label", "카드");
+      card_button.dataset.emoji = emoji;
+      card_button.dataset.index = String(index);
+      card_button.textContent = emoji;
+
+      card_button.addEventListener("click", handle_card_click);
+      return card_button;
+    }
+
+    function reveal_card(card_element) {
+      card_element.classList.add("flipped");
+      card_element.setAttribute("aria-pressed", "true");
+    }
+
+    function hide_card(card_element) {
+      if (!card_element) {
+        return;
+      }
+
+      card_element.classList.remove("flipped");
+      card_element.setAttribute("aria-pressed", "false");
+    }
+
+    function lock_matched_cards(card_one, card_two) {
+      card_one.classList.add("matched");
+      card_two.classList.add("matched");
+      card_one.disabled = true;
+      card_two.disabled = true;
+    }
+
+    function clear_selection() {
+      first_card = null;
+      second_card = null;
+      board_locked = false;
+    }
+
+    function check_match() {
+      attempt_count += 1;
+      update_attempt_count();
+
+      if (first_card.dataset.emoji === second_card.dataset.emoji) {
+        lock_matched_cards(first_card, second_card);
+        matched_pairs += 1;
+        clear_selection();
+
+        if (matched_pairs === emoji_list.length) {
+          set_message(`축하합니다! ${attempt_count}번 만에 모두 맞췄습니다.`);
+        } else {
+          set_message("잘 찾았어요! 같은 그림입니다.");
+        }
+        return;
+      }
+
+      set_message("다시 시도해보세요.", true);
+      board_locked = true;
+
+      window.setTimeout(() => {
+        hide_card(first_card);
+        hide_card(second_card);
+        clear_selection();
+      }, 850);
+    }
+
+    function handle_card_click(event) {
+      const clicked_card = event.currentTarget;
+
+      if (board_locked || clicked_card === first_card || clicked_card.classList.contains("matched")) {
+        return;
+      }
+
+      reveal_card(clicked_card);
+
+      if (!first_card) {
+        first_card = clicked_card;
+        return;
+      }
+
+      second_card = clicked_card;
+      check_match();
+    }
+
+    function render_board() {
+      const paired_emojis = shuffle_array([...emoji_list, ...emoji_list]);
+      board_element.innerHTML = "";
+
+      paired_emojis.forEach((emoji, index) => {
+        const card_element = create_card(emoji, index);
+        board_element.appendChild(card_element);
+      });
+    }
+
+    function reset_game() {
+      cards = [];
+      first_card = null;
+      second_card = null;
+      board_locked = false;
+      attempt_count = 0;
+      matched_pairs = 0;
+
+      update_attempt_count();
+      set_message("카드를 눌러 같은 그림을 찾아보세요.", true);
+      render_board();
+      cards = Array.from(board_element.querySelectorAll(".card"));
+    }
+
+    restart_button.addEventListener("click", reset_game);
+
+    reset_game();
+  </script>
+</body>
+</html>
